@@ -1,0 +1,279 @@
+<!doctype html>
+<html>
+<head>
+  <title>Card Names</title>
+  <style>
+    body {
+      background-color: #A9A9A9;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+    html {
+      height: 100%;
+    }
+    .main-container {
+      display: flex;
+      justify-content: space-between;
+      height: 100%;
+    }
+    .card-list {
+      width: 48%;
+      overflow-y: auto;
+      height: 100%;
+    }
+    .card-details {
+      width: 48%;
+      overflow-y: auto;
+      height: 100%;
+      background-color: #A9A9A9;
+      padding: 10px;
+      border-left: 1px solid #ccc;
+    }
+    .card {
+      position: relative;
+      display: block;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    .card-info {
+      display: none;
+      position: absolute;
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      z-index: 1;
+      padding: 5px;
+      white-space: nowrap;
+      max-width: 600px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .card:hover .card-info {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .card img {
+      width: auto;
+      height: 400px;
+      margin-right: 10px;
+    }
+    .prices {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .price-item {
+      margin-bottom: 0.5em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .spacer {
+      height: 450px;
+    }
+    .light-blue {
+      color: #106986;
+    }
+    .dark-green {
+      color: #006400;
+    }
+    .button {
+      display: inline-block;
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 14px;
+      font-weight: bold;
+      text-align: center;
+      text-decoration: none;
+      color: #fff;
+      background-color: #007BFF;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    .button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <h1>Card Names</h1>
+  <div class="main-container">
+    <div class="card-list">
+      <input type="text" id="searchBar" placeholder="Search by name..." onkeyup="searchCards()">
+      <ul id="cardList">
+        {% for card_key, card_values in card_data.items() %}
+        <li class="card" onclick="openCardDetails('{{ card_key }}', '{{ card_values.image_url | escape }}')">
+            <span class="card-name">
+                {{ card_key.split(' ')[0] }} - {{ card_key.split(' ')[1] }} - {{ card_values.number_in_set }} - {{ card_values.labels | join(', ') }} - [{{ card_values.new_avg_price }}] - <span class="{{ card_values.box_class }}">Box: {{ card_values.box_name }}</span>
+            </span>
+            <div class="card-info">
+              <img src="{{ card_values.image_url }}" alt="{{ card_key.split(' ')[0] }}" style="flex-shrink: 0;">
+              <div class="prices">
+                  {% for price_detail in card_values.prices %}
+                  <div class="price-item">Price: {{ price_detail[0] }} - Stock: {{ price_detail[1] }} - Shipping: {{ price_detail[2] }}</div>
+                  {% endfor %}
+              </div>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      <div class="spacer"></div>
+    </div>
+    <div class="card-details" id="cardDetails"></div>
+  </div>
+  
+  <h2>Submit a Ticket</h2>
+  <form id="ticketForm">
+    <label for="username">Username:</label>
+    <input type="text" id="username" name="username" required><br><br>
+    <label for="issue">Issue:</label>
+    <textarea id="issue" name="issue" required></textarea><br><br>
+    <button type="submit">Submit</button>
+  </form>
+
+  <script>
+    function searchCards() {
+      let searchValue = document.getElementById('searchBar').value.toLowerCase();
+      let cardList = document.getElementById('cardList');
+      let cards = cardList.getElementsByTagName('li');
+      for (let i = 0; i < cards.length; i++) {
+        let card = cards[i];
+        let cardName = card.querySelector('.card-name').textContent || card.querySelector('.card-name').innerText;
+        if (cardName.toLowerCase().indexOf(searchValue) > -1) {
+          cards[i].style.display = "";
+        } else {
+          cards[i].style.display = "none";
+        }
+      }
+    }
+
+    function openCardDetails(cardNameLabel, imageUrl) {
+      fetch(`/card-details?name=${encodeURIComponent(cardNameLabel)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                displayCardDetails(data.card_data, imageUrl);
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    function processCardNumber(numberInSet) {
+        return numberInSet.replace(/^0+/, '');
+    }
+
+    function simplifySetName(setName) {
+        const cleanedSetName = setName.replace(/.*[-:]\s*/, '');
+        return cleanedSetName.trim();
+    }
+
+    function formatLabel(label) {
+        if (label.includes("&Printing=1st+Edition+Holofoil")) {
+            return "1st Edition";
+        } else if (label.includes("Holofoil") || label.includes("1st Edition")) {
+            return label.replace(/&Printing=|(\+Holofoil)/g, '').replace('+', ' ');
+        }
+        return "";
+    }
+
+    function transformCardInfo(name, label, setName, numberInSet) {
+        const number = processCardNumber(numberInSet);
+        const set = simplifySetName(setName);
+        const formattedLabel = formatLabel(label);
+        let cardDescription = `${name}`;
+
+        if (formattedLabel) {
+            cardDescription += ` [${formattedLabel}]`;
+        }
+
+        cardDescription += ` #${number} Pokemon ${set}`;
+        return cardDescription;
+    }
+
+    function displayCardDetails(cardData, imageUrl) {
+        const detailsDiv = document.getElementById('cardDetails');
+        const imgWidth = "400px";
+        const imgHeight = "auto";
+
+        detailsDiv.innerHTML = `<div style="display: flex; align-items: center; margin-bottom: 10px;">
+            <img src="${imageUrl}" alt="Card image" style="width: ${imgWidth}; height: ${imgHeight}; margin-right: 10px;">
+            <div>
+                <h4>${transformCardInfo(cardData[0].name, cardData[0].label, cardData[0].set, cardData[0].number_in_set)}</h4>
+                <p>Number: ${processCardNumber(cardData[0].number_in_set)}</p>
+            </div>
+        </div>`;
+
+        const pricesDiv = document.createElement('div');
+        cardData.forEach(card => {
+            const priceContent = `
+                <div class="price-item">
+                    Price: ${card.price} - Stock: ${card.stock} - Shipping: ${card.shipping}
+                </div>
+            `;
+            pricesDiv.innerHTML += priceContent;
+        });
+        detailsDiv.appendChild(pricesDiv);
+
+        const ebaySearchQuery = encodeURIComponent(transformCardInfo(cardData[0].name, cardData[0].label, cardData[0].set, cardData[0].number_in_set));
+        const ebaySearchUrl = `https://www.ebay.com/sch/i.html?_nkw=${ebaySearchQuery}`;
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.innerHTML = `
+            <a href="${ebaySearchUrl}" target="_blank" class="button">Search on eBay</a>
+            <a href="${cardData[0].url}" target="_blank" class="button">View on TCGPlayer</a>
+            <button class="button" onclick="flagCard('${cardData[0].name}')">Flag Card</button>
+        `;
+        detailsDiv.appendChild(actionsDiv);
+    }
+
+    function flagCard(cardName) {
+      fetch('/flag_card', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `card_name=${encodeURIComponent(cardName)}`
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          alert('Card flagged successfully');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+      });
+    }
+
+    document.getElementById('ticketForm').addEventListener('submit', function(event) {
+      event.preventDefault();
+      const username = document.getElementById('username').value;
+      const issue = document.getElementById('issue').value;
+
+      fetch('/submit-ticket', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, issue })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          alert('Ticket submitted successfully!');
+        } else {
+          alert('Failed to submit ticket.');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+      });
+    });
+  </script>
+</body>
+</html>

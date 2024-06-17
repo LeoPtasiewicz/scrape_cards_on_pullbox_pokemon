@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+<head>
+  <title>Card Names</title>
+  <style>
+    .card {
+      position: relative;
+      display: block; 
+      margin-bottom: 10px; 
+      cursor: pointer;
+    }
+    .card-info {
+      display: none;
+      position: absolute;
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      z-index: 1;
+      padding: 5px;
+      white-space: nowrap; 
+      max-width: 600px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Optional: adds shadow for better visibility */
+    }
+    .card:hover .card-info {
+      display: flex; /* Use flexbox layout */
+      align-items: center; /* Center items vertically */
+      flex-wrap: wrap; /* Allow items to wrap as needed */
+    }
+    .card img {
+      width: auto; /* Adjust width as necessary, or use a specific width */
+      height: 400px; /* Adjust height as necessary */
+      margin-right: 10px;
+    }
+    .prices {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .price-item {
+      margin-bottom: 0.5em;
+    }
+    .spacer {
+      height: 450px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Card Names</h1>
+  <input type="text" id="searchBar" placeholder="Search by name..." onkeyup="searchCards()">
+  <ul id="cardList">
+    {% for card_key, card_values in card_data.items() %}
+    <li class="card">
+      <span class="card-name" 
+      data-card-name="{{ card_key.split(', ')[0] | escape }}"
+      data-image-url="{{ card_values.image_url }}"
+      onclick="openCardDetails(this)">
+      {{ card_key.split(', ')[0] }} - {{ card_values.number_in_set }} - {{ card_values.labels | join(', ') }}  {{ card_key.split(', ')[2] | escape }}
+    </span>
+      <div class="card-info">
+        <img src="{{ card_values.image_url }}" alt="{{ card_key.split(' - ')[0] }}" style="flex-shrink: 0;">
+        <div class="prices">
+          {% for price_detail in card_values.prices %}
+          <div class="price-item">Price: {{ price_detail[0] }} - Stock: {{ price_detail[1] }} - Shipping: {{ price_detail[2] }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="spacer"></div>
+  <script>
+    function searchCards() {
+      let searchValue = document.getElementById('searchBar').value.toLowerCase();
+      let cardList = document.getElementById('cardList');
+      let cards = cardList.getElementsByTagName('li');
+      for (let i = 0; i < cards.length; i++) {
+        let card = cards[i];
+        let cardName = card.querySelector('.card-name').textContent || card.querySelector('.card-name').innerText;
+        if (cardName.toLowerCase().indexOf(searchValue) > -1) {
+          cards[i].style.display = "";
+        } else {
+          cards[i].style.display = "none";
+        }
+      }
+    }
+
+    function openCardDetails(element) {
+  var cardName = element.getAttribute('data-card-name');
+  var imageUrl = element.getAttribute('data-image-url');
+
+  console.log("Card Name:", cardName); // Debug
+  console.log("Image URL:", imageUrl); // Debug
+
+  if (!imageUrl || imageUrl === 'None') {
+    console.error('Image URL is undefined or None');
+    return;
+  }
+
+  const detailUrl = `/card-details?name=${encodeURIComponent(cardName)}&image_url=${encodeURIComponent(imageUrl)}`;
+  window.location.href = detailUrl;
+}
+
+
+  </script>
+</body>
+</html>

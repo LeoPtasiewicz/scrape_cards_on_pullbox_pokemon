@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+<head>
+  <title>Card Details</title>
+  <style>
+          body {
+    background-color: #A9A9A9; /* This is a light grey color; adjust the shade as needed */
+  }
+  
+    body {
+      display: flex;
+      margin: 0;
+      padding: 0;
+    }
+    .card-detail-container {
+      width: 50%;
+      padding: 20px;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+    .price-list {
+      list-style-type: none;
+      padding: 0;
+    }
+    .price-list li {
+      margin-bottom: 5px;
+    }
+    .back-link {
+      display: block; /* Makes the link a block element, placing it below the image */
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card-detail-container">
+    <h2>{{ card_name }} - {{ card_label }}</h2>
+    <img src="{{ image_url }}" alt="{{ card_name }}">
+    <ul class="price-list">
+      {% for price, stock, shipping in prices %}
+      <li>Price: {{ price }} - Stock: {{ stock }} - Shipping: {{ shipping }}</li>
+      {% endfor %}
+    </ul>
+    <a href="{{ ebay_search_url }}" target="_blank">View on eBay</a>
+    <form action="{{ url_for('flag_card') }}" method="post">
+      <input type="hidden" name="card_name" value="{{ card_name }}">
+      <!-- Include any other hidden inputs you need to identify the card -->
+      <button type="submit">Flag Card</button>
+  </form>
+    <a href="/cards2" class="back-link">Back to Card List</a>
+  </div>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('form').on('submit', function(e) {
+        e.preventDefault(); // Prevent the form from submitting the traditional way
+
+        var formData = $(this).serialize(); // Get form data
+
+        $.ajax({
+            url: '{{ url_for("flag_card") }}',
+            type: 'POST',
+            data: formData,
+            success: function(response) {
+                // Update the UI to indicate the card is flagged
+                // For example, you can change the button text or add a marker
+                $('button').text('Card Flagged').prop('disabled', true);
+                // You can also add a class to the button to change its style
+            },
+            error: function(xhr, status, error) {
+                // Handle errors here, such as displaying an error message
+                console.error("Error flagging card:", error);
+            }
+        });
+    });
+});
+</script>
+</body>
+</html>

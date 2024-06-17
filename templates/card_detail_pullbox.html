@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <title>Card Details</title>
+  <style>
+    body {
+      display: flex;
+      margin: 0;
+      padding: 0;
+    }
+    .card-detail-container {
+      width: 50%;
+      padding: 20px;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+    .price-list {
+      list-style-type: none;
+      padding: 0;
+    }
+    .price-list li {
+      margin-bottom: 5px;
+    }
+    .back-link {
+      display: block; /* Makes the link a block element, placing it below the image */
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card-detail-container">
+    <h2>{{ card_name }} - {{ card_label }}</h2>
+    <img src="{{ image_url }}" alt="{{ card_name }}">
+    <a href="{{ ebay_search_url }}" target="_blank">View on eBay</a>
+    <a href="/cards2" class="back-link">Back to Card List</a>
+  </div>
+</body>
+</html>
