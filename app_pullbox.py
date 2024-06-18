@@ -14,11 +14,15 @@ load_dotenv()
 app = Flask(__name__)
 
 def get_db_connection():
-    db_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'pullbox_cards.db')
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(script_dir, 'databases', 'pullbox_cards.db')
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(f"Database file not found at {db_path}")
     print(f"Connecting to database at: {db_path}")
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
+
 
 def truncate_label(label):
     return (label[:1000] + '...') if len(label) > 1000 else label

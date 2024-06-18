@@ -227,7 +227,6 @@ def get_listing_info(driver, url_label_boxname_pairs):
 
     return listings_data
 
-
 def fetch_all_card_data(cursor):
     cursor.execute("SELECT name, box_name, price_avg FROM card_data")
     return {row[:2]: row[2] for row in cursor.fetchall()}
@@ -282,7 +281,11 @@ def initialize_webdriver():
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 
 if __name__ == "__main__":
-    db_path = 'c:/users/Leo Ptasiewicz/desktop/cards_on_pullbox.db'
+    # Define the path to the databases folder in the same directory as the script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    base_path = os.path.join(script_dir, 'databases')
+    
+    db_path = os.path.join(base_path, 'cards_on_pullbox.db')
     connection = sqlite3.connect(db_path)
     cursor = connection.cursor()
 
@@ -292,19 +295,17 @@ if __name__ == "__main__":
     cursor.close()
     connection.close()
 
-    desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
-    db_path = os.path.join(desktop_path, 'pullbox_cards.db')
+    today_db_path = os.path.join(base_path, 'pullbox_cards.db')
 
-    if os.path.exists(db_path):
-        today = datetime.today().strftime('%Y-%m-%d')
-        new_db_path = os.path.join(desktop_path, 'pullbox_cards_yesterday.db')
+    if os.path.exists(today_db_path):
+        new_db_path = os.path.join(base_path, 'pullbox_cards_yesterday.db')
 
         if os.path.exists(new_db_path):
             os.remove(new_db_path)
 
-        os.rename(db_path, new_db_path)
+        os.rename(today_db_path, new_db_path)
 
-    connection = sqlite3.connect(db_path)
+    connection = sqlite3.connect(today_db_path)
     cursor = connection.cursor()
 
     cursor.execute('''
@@ -350,8 +351,7 @@ if __name__ == "__main__":
         cursor.close()
         connection.close()
 
-    today_db_path = os.path.join(desktop_path, 'pullbox_cards.db')
-    yesterday_db_path = os.path.join(desktop_path, 'pullbox_cards_yesterday.db')
+    yesterday_db_path = os.path.join(base_path, 'pullbox_cards_yesterday.db')
     webhook_url = 'https://discord.com/api/webhooks/1232752903140278342/uXpkRiAjvN3nw4iCs9t0K42HZZj3x_ddvZ7sAcgHa5CYcCEPGTzQG1TtL8JLu7ZFpnl5'
 
     compare_databases(today_db_path, yesterday_db_path, webhook_url)
