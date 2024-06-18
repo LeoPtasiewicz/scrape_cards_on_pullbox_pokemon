@@ -14,7 +14,7 @@ load_dotenv()
 app = Flask(__name__)
 
 def get_db_connection():
-    db_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'pullbox_cards2.db')
+    db_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'pullbox_cards.db')
     print(f"Connecting to database at: {db_path}")
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -166,6 +166,7 @@ def card_details():
     } for row in rows]
 
     return jsonify(card_data=card_data)
+
 
 @app.route('/submit-ticket', methods=['POST'])
 def submit_ticket():

@@ -10,6 +10,55 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
+import statistics
+
+def get_spotlight_price(driver):
+    try:
+        price_element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, '.spotlight__price')))
+        price = price_element.text.strip().replace('$', '').replace(',', '').strip()
+    except TimeoutException:
+        price = "NA"
+    return price
+
+def get_spotlight_stock(driver):
+    try:
+        stock_element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, '.add-to-cart__available')))
+        stock = stock_element.text.strip().split()[-1]
+    except TimeoutException:
+        stock = "NA"
+    return stock
+
+def is_spotlight_direct(driver):
+    direct_seller = "no"
+    try:
+        driver.find_element(By.CSS_SELECTOR, '.spotlight__banner.direct')
+        direct_seller = "yes"
+    except NoSuchElementException:
+        pass
+    return direct_seller
+
+def get_spotlight_info(driver):
+    spotlight_info = {}
+    try:
+        spotlight_price = get_spotlight_price(driver)
+        spotlight_stock = get_spotlight_stock(driver)
+        direct_seller = is_spotlight_direct(driver)
+
+        spotlight_info = {
+            'Spotlight Price': spotlight_price,
+            'Spotlight Stock': spotlight_stock,
+            'Direct': direct_seller
+        }
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        spotlight_info = {
+            'Spotlight Price': "NA",
+            'Spotlight Stock': "NA",
+            'Direct': "NA"
+        }
+
+    return spotlight_info
 
 def wait_for_non_empty_text(driver, locator, timeout=10):
     return WebDriverWait(driver, timeout).until(
@@ -80,6 +129,9 @@ def get_listings_info(driver):
 
 def get_listing_info(driver, url_label_boxname_pairs):
     listings_data = []
+    spotlight_infos = {}
+    card_prices = {}
+
     for url, label, box_name in url_label_boxname_pairs:
         try:
             driver.get(url)
@@ -87,13 +139,25 @@ def get_listing_info(driver, url_label_boxname_pairs):
             card_info = get_card_info(driver)
             listings_info = get_listings_info(driver)
 
-            price_avg = "NA"
-            if listings_info and 'Price' in listings_info[0]:
-                prices = [float(listing['Price'].replace('$', '').replace(',', '').strip())
-                          for listing in listings_info if listing['Price'] != "NA"]
-                if prices:
-                    price_avg = sum(prices) / len(prices)
-                price_avg = f"{price_avg:.2f}" if prices else "NA"
+            # Ensure the card name is in the card_prices dictionary
+            if card_info['Card Name'] not in card_prices:
+                card_prices[card_info['Card Name']] = []
+
+            # Collect prices including shipping costs
+            prices_with_shipping = []
+            for listing in listings_info:
+                price = listing['Price']
+                shipping_cost = listing['Shipping Cost']
+                if price != "NA":
+                    try:
+                        total_price = float(price.replace('$', '').replace(',', '').strip())
+                        if shipping_cost != "NA":
+                            total_price += float(shipping_cost.replace('$', '').replace(',', '').strip())
+                        prices_with_shipping.append(total_price)
+                        card_prices[card_info['Card Name']].append(total_price)
+                    except ValueError:
+                        # Handle the case where price or shipping cost is not a valid number
+                        pass
 
             for listing in listings_info:
                 listing_price = listing['Price'] if listing['Price'] != "NA" else "NA"
@@ -108,14 +172,61 @@ def get_listing_info(driver, url_label_boxname_pairs):
                     listing_price,
                     listing['Shipping Cost'],
                     listing['Stock'],
-                    price_avg
+                    "NA"  # Placeholder for price_avg, will be updated later
                 ))
+
+            # Get spotlight info
+            spotlight_info = get_spotlight_info(driver)
+            spotlight_data = (
+                card_info['Card Name'],
+                spotlight_info['Spotlight Price'],
+                spotlight_info['Spotlight Stock'],
+                "Free Shipping" if spotlight_info['Direct'] == "yes" else "NA",
+                spotlight_info['Direct']
+            )
+            spotlight_infos[spotlight_data[0]] = spotlight_data
 
         except Exception as e:
             print(f"An error occurred with URL {url} and label {label}: {e}")
             continue
 
+    # Calculate box price idea
+    for card_name, spotlight_data in spotlight_infos.items():
+        spotlight_price = spotlight_data[1]
+        spotlight_stock = spotlight_data[2]
+        spotlight_direct = spotlight_data[4]
+
+        if spotlight_direct == "yes" and spotlight_stock != "NA" and int(spotlight_stock) >= 25:
+            # Calculate the average and standard deviation of the first 10 listings
+            first_10_prices = [price for price in card_prices[card_name][:10]]
+            if len(first_10_prices) > 1:
+                avg_first_10 = statistics.mean(first_10_prices)
+                std_dev_first_10 = statistics.stdev(first_10_prices)
+
+                if abs(float(spotlight_price) - avg_first_10) <= 2 * std_dev_first_10:
+                    box_price = float(spotlight_price)
+                else:
+                    box_price = statistics.mean(card_prices[card_name])
+            else:
+                box_price = statistics.mean(first_10_prices) if first_10_prices else "NA"
+        else:
+            # Calculate the weighted average excluding vendors with fewer than 500 sales and prices outside 2 standard deviations
+            if len(card_prices[card_name]) > 1:
+                filtered_prices = [price for price in card_prices[card_name] if abs(price - statistics.mean(card_prices[card_name])) <= 2 * statistics.stdev(card_prices[card_name])]
+                filtered_prices = [price for price in filtered_prices if any(listing[4] == card_name and int(listing[5].replace(' Sales', '')) >= 500 for listing in listings_data)]
+                box_price = statistics.mean(filtered_prices) if filtered_prices else statistics.mean(card_prices[card_name])
+            else:
+                box_price = statistics.mean(card_prices[card_name]) if card_prices[card_name] else "NA"
+
+        price_avg = f"{box_price:.2f}" if box_price != "NA" else "NA"
+
+        # Update listings_data with the calculated price_avg
+        for i in range(len(listings_data)):
+            if listings_data[i][0] == card_name:
+                listings_data[i] = listings_data[i][:-1] + (price_avg,)
+
     return listings_data
+
 
 def fetch_all_card_data(cursor):
     cursor.execute("SELECT name, box_name, price_avg FROM card_data")
@@ -212,7 +323,7 @@ if __name__ == "__main__":
     )
     ''')
 
-    num_workers = 4  # Number of Chrome instances to run in parallel
+    num_workers = 8  # Number of Chrome instances to run in parallel
     chunks = [url_label_boxname_pairs[i::num_workers] for i in range(num_workers)]
 
     drivers = [initialize_webdriver() for _ in range(num_workers)]

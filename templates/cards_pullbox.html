@@ -105,7 +105,7 @@
       <input type="text" id="searchBar" placeholder="Search by name..." onkeyup="searchCards()">
       <ul id="cardList">
         {% for card_key, card_values in card_data.items() %}
-        <li class="card" onclick="openCardDetails('{{ card_key }}', '{{ card_values.image_url | escape }}')">
+        <li class="card" onclick="openCardDetails('{{ card_key | safe }}', '{{ card_values.image_url | escape }}')">
             <span class="card-name">
                 {{ card_key.split(' ')[0] }} - {{ card_key.split(' ')[1] }} - {{ card_values.number_in_set }} - {{ card_values.labels | join(', ') }} - [{{ card_values.new_avg_price }}] - <span class="{{ card_values.box_class }}">Box: {{ card_values.box_name }}</span>
             </span>
@@ -151,16 +151,16 @@
     }
 
     function openCardDetails(cardNameLabel, imageUrl) {
-      fetch(`/card-details?name=${encodeURIComponent(cardNameLabel)}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                alert(data.error);
-            } else {
-                displayCardDetails(data.card_data, imageUrl);
-            }
-        })
-        .catch(error => console.error('Error:', error));
+        fetch(`/card-details?name=${encodeURIComponent(cardNameLabel)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    displayCardDetails(data.card_data, imageUrl);
+                }
+            })
+            .catch(error => console.error('Error:', error));
     }
 
     function processCardNumber(numberInSet) {
