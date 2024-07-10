@@ -80,7 +80,7 @@ def get_card_info(driver):
             card_name = "NA"
 
     images = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.TAG_NAME, 'img')))
-    card_image_url = next((img.get_attribute('src') for img in images if 'https://product-images.tcgplayer.com' in img.get_attribute('src')), None)
+    card_image_url = next((img.get_attribute('src') for img in images if 'https://tcgplayer-cdn.tcgplayer.com' in img.get_attribute('src')), None)
 
     return {
         'Card Name': card_name,
@@ -144,21 +144,16 @@ def get_listing_info(driver, url_label_boxname_pairs):
                 card_prices[card_info['Card Name']] = []
 
             # Collect prices including shipping costs
-            prices_with_shipping = []
+            prices_without_shipping = []
             for listing in listings_info:
                 price = listing['Price']
-                shipping_cost = listing['Shipping Cost']
                 if price != "NA":
                     try:
                         total_price = float(price.replace('$', '').replace(',', '').strip())
-                        if shipping_cost != "NA":
-                            total_price += float(shipping_cost.replace('$', '').replace(',', '').strip())
-                        prices_with_shipping.append(total_price)
+                        prices_without_shipping.append(total_price)
                         card_prices[card_info['Card Name']].append(total_price)
                     except ValueError:
-                        # Handle the case where price or shipping cost is not a valid number
                         pass
-
             for listing in listings_info:
                 listing_price = listing['Price'] if listing['Price'] != "NA" else "NA"
                 listings_data.append((
@@ -285,7 +280,7 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     base_path = os.path.join(script_dir, 'databases')
     
-    db_path = os.path.join(base_path, 'cards_on_pullbox.db')
+    db_path = os.path.join(base_path, 'cards_on_pullbox_tim.db')
     connection = sqlite3.connect(db_path)
     cursor = connection.cursor()
 
@@ -324,7 +319,7 @@ if __name__ == "__main__":
     )
     ''')
 
-    num_workers = 8  # Number of Chrome instances to run in parallel
+    num_workers = 4  # Number of Chrome instances to run in parallel
     chunks = [url_label_boxname_pairs[i::num_workers] for i in range(num_workers)]
 
     drivers = [initialize_webdriver() for _ in range(num_workers)]

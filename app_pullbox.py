@@ -23,6 +23,9 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+@app.route('/')
+def index():
+    return redirect(url_for('cards'))
 
 def truncate_label(label):
     return (label[:1000] + '...') if len(label) > 1000 else label
@@ -67,7 +70,7 @@ def cards():
 
         # Calculate the new average price
         try:
-            card_entry['new_avg_price'] = round(float(row['price_avg']) * 1.53, 2)
+            card_entry['new_avg_price'] = round(float(row['price_avg']) * 1.679, 2)
         except (TypeError, ValueError):
             card_entry['new_avg_price'] = None
 
@@ -205,6 +208,9 @@ def submit_ticket():
         print(f"Error submitting ticket: {e}")
         return jsonify({'status': 'error', 'message': 'Failed to submit ticket'}), 500
 
+print("Running the Flask app. Access it at: http://192.168.1.111:5000/cards2")
+print("/d/ngrok.exe start my_custom_domain")
 if __name__ == '__main__':
-    print("Running the Flask app. Access it at: http://127.0.0.1:5000/cards2")
-    app.run(debug=True)
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)

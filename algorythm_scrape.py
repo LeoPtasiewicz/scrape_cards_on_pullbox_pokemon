@@ -1,3 +1,6 @@
+from flask import Flask, request, jsonify, render_template_string, redirect, url_for
+import sympy as sp
+import urllib.parse
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -7,6 +10,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 import statistics
+from bs4 import BeautifulSoup
+
+app = Flask(__name__)
 
 def wait_for_non_empty_text(driver, locator, timeout=10):
     return WebDriverWait(driver, timeout).until(
@@ -137,25 +143,25 @@ def get_listing_info(driver, url):
         listings_info = get_listings_info(driver)
 
         for listing in listings_info:
-            listings_data.append((
-                card_info,
-                listing['Price'],
-                listing['Stock'],
-                listing['Shipping Cost'],
-                listing['Seller'],
-                listing['Sales'],
-                listing['Direct']
-            ))
+            listings_data.append({
+                'Card Name': card_info,
+                'Price': listing['Price'],
+                'Stock': listing['Stock'],
+                'Shipping Cost': listing['Shipping Cost'],
+                'Seller': listing['Seller'],
+                'Sales': listing['Sales'],
+                'Direct': listing['Direct']
+            })
 
         # Get spotlight info
         spotlight_info = get_spotlight_info(driver)
-        spotlight_data = (
-            card_info,
-            spotlight_info['Spotlight Price'],
-            spotlight_info['Spotlight Stock'],
-            "Free Shipping" if spotlight_info['Direct'] == "yes" else "NA",
-            spotlight_info['Direct']
-        )
+        spotlight_data = {
+            'Card Name': card_info,
+            'Spotlight Price': spotlight_info['Spotlight Price'],
+            'Spotlight Stock': spotlight_info['Spotlight Stock'],
+            'Shipping Cost': "Free Shipping" if spotlight_info['Direct'] == "yes" else "NA",
+            'Direct': spotlight_info['Direct']
+        }
 
     except Exception as e:
         print(f"An error occurred with URL {url}: {e}")
@@ -165,95 +171,137 @@ def get_listing_info(driver, url):
 def initialize_webdriver():
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 
-if __name__ == "__main__":
-    urls = [
-        'https://www.tcgplayer.com/product/477061/pokemon-crown-zenith-galarian-gallery-glaceon-vstar?Condition=Near+Mint&Language=English&page=1&ListingType=standard',
-        'https://www.tcgplayer.com/product/502589?irclickid=QxPxEZ2hUxyKWHgV6XVKNVrtUkHXse0VrRa:X80&sharedid=&irpid=4944541&irgwc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=Scrydex&Printing=Reverse+Holofoil&ListingType=standard&page=1&Condition=Near+Mint&Language=English',
-        'https://www.tcgplayer.com/product/197646/pokemon-hidden-fates-paras?Condition=Near+Mint&Language=English&page=1&Printing=Normal&ListingType=standard',
-        'https://www.tcgplayer.com/product/107006/pokemon-base-set-shadowless-nidoking?page=1&Language=English&Printing=1st+Edition+Holofoil&Condition=Near+Mint|Lightly+Played',
-        'https://www.tcgplayer.com/product/283885?irclickid=2m4y842hRxyKWHgV6XVKNVrtUkHXseWNrRa:X80&sharedid=&irpid=4944541&irgwc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=Scrydex&Printing=Normal&ListingType=standard&page=1&Condition=Near+Mint&Language=English',
-        'https://www.tcgplayer.com/product/234199?irclickid=21sU372hRxyKWHgV6XVKNVrtUkHXseWBrRa:X80&sharedid=&irpid=4944541&irgwc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=Scrydex&Printing=Normal&ListingType=standard&page=1&Condition=Near+Mint&Language=English',
-        'https://www.tcgplayer.com/product/183964?irclickid=y-vSdB2hUxyKWHgV6XVKNVrtUkHXsZRBrRa%3AX80&sharedid=&irpid=4944541&irgwc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=Scrydex&Printing=Holofoil&ListingType=standard&page=1&Condition=Lightly+Played|Near+Mint',
-        'https://www.tcgplayer.com/product/107067/pokemon-base-set-shadowless-clefairy-doll?page=1&Language=English&Printing=1st+Edition&Condition=Near+Mint|Lightly+Played',
-        'https://www.tcgplayer.com/product/44419/pokemon-fossil-lapras-10?page=1&Language=English&Printing=1st+Edition+Holofoil&Condition=Lightly+Played|Near+Mint&ListingType=standard'
+@app.route('/process-image', methods=['GET'])
+def process_image():
+    image_url = request.args.get('url')
+    if image_url:
+        try:
+            # Download the image
+            response = requests.get(image_url)
+            response.raise_for_status()
+            image = Image.open(BytesIO(response.content))
+            
+            # Extract image information
+            width, height = image.size
+            format = image.format
 
-    ]
+            # Return the information as JSON
+            return jsonify({
+                "url": image_url,
+                "width": width,
+                "height": height,
+                "format": format
+            })
+        except requests.RequestException as e:
+            return jsonify({"error": "Failed to download image", "details": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": "Failed to process image", "details": str(e)}), 400
+    else:
+        return jsonify({"error": "No image URL provided"}), 400
     
-    driver = initialize_webdriver()
-    all_listings = []
-    spotlight_infos = {}
-    try:
-        for url in urls:
+@app.route('/')
+def index():
+    return render_template_string('''
+        <!doctype html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Math API</title>
+        </head>
+        <body>
+            <h1>Enter a mathematical equation</h1>
+            <form action="/generate-url" method="get">
+                <label for="equation">Equation:</label>
+                <input type="text" id="equation" name="eq">
+                <input type="submit" value="Generate API URL">
+            </form>
+            {% if api_url %}
+                <h2>Generated API URL:</h2>
+                <p><a href="{{ api_url }}" target="_blank">{{ api_url }}</a></p>
+            {% endif %}
+        </body>
+        </html>
+    ''')
+
+@app.route('/generate-url', methods=['GET'])
+def generate_url():
+    equation = request.args.get('eq')
+    if equation:
+        # Encode the equation for the URL correctly
+        encoded_equation = urllib.parse.quote(equation)
+        api_url = url_for('calculate', eq=encoded_equation, _external=True)
+        return render_template_string('''
+            <!doctype html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Math API</title>
+            </head>
+            <body>
+                <h1>Enter a mathematical equation</h1>
+                <form action="/generate-url" method="get">
+                    <label for="equation">Equation:</label>
+                    <input type="text" id="equation" name="eq">
+                    <input type="submit" value="Generate API URL">
+                </form>
+                <h2>Generated API URL:</h2>
+                <p><a href="{{ api_url }}" target="_blank">{{ api_url }}</a></p>
+            </body>
+            </html>
+        ''', api_url=api_url)
+    else:
+        return redirect(url_for('index'))
+
+@app.route('/calculate', methods=['GET'])
+def calculate():
+    equation = request.args.get('eq')
+    if equation:
+        try:
+            # Log the received equation for debugging
+            print(f"Received equation: {equation}")
+            
+            # Decode the equation from the URL
+            equation = urllib.parse.unquote(equation)
+            print(f"Decoded equation: {equation}")
+            
+            # Remove spaces and ensure proper formatting
+            equation = equation.replace(" ", "")
+            print(f"Processed equation: {equation}")
+            
+            # Validate and parse the equation
+            result = sp.sympify(equation)
+            return jsonify({"equation": equation, "result": float(result)})
+        except sp.SympifyError as e:
+            print(f"SympifyError: {e}")
+            return jsonify({"error": "Invalid mathematical expression", "details": str(e)}), 400
+        except Exception as e:
+            print(f"General Error: {e}")
+            return jsonify({"error": "An error occurred", "details": str(e)}), 400
+    else:
+        return jsonify({"error": "No equation provided"}), 400
+
+@app.route('/process-tcgplayer-url', methods=['GET'])
+def process_tcgplayer_url():
+    url = request.args.get('url')
+    if url:
+        driver = initialize_webdriver()
+        try:
             listings_data, spotlight_data = get_listing_info(driver, url)
-            all_listings.extend(listings_data)
-            spotlight_infos[spotlight_data[0]] = spotlight_data
+            response_data = {
+                "listings": listings_data,
+                "spotlight": spotlight_data
+            }
+            return jsonify(response_data)
+        except Exception as e:
+            return jsonify({"error": "Failed to process URL", "details": str(e)}), 400
+        finally:
+            driver.quit()
+    else:
+        return jsonify({"error": "No URL provided"}), 400
 
-            for data in listings_data:
-                print(f"Card Name: {data[0]}")
-                print(f"Price: ${data[1]}")
-                print(f"Stock: {data[2]}")
-                print(f"Shipping Cost: {data[3]}")
-                print(f"Seller: {data[4]}")
-                print(f"Sales: {data[5]}")
-                print(f"Direct: {data[6]}")
-                print("-" * 40)
-
-            print("Spotlight Listing:")
-            print(f"Card Name: {spotlight_data[0]}")
-            print(f"Price: {spotlight_data[1]}")
-            print(f"Stock: {spotlight_data[2]}")
-            print(f"Shipping Cost: {spotlight_data[3]}")
-            print(f"Direct: {spotlight_data[4]}")
-            print("=" * 40)
-    finally:
-        print("python algorythm_scrape.py")
-        driver.quit()
-
-    # Calculate mean average of all listings prices (including shipping) for each card
-    card_prices = {}
-    for listing in all_listings:
-        card_name = listing[0]
-        price = listing[1]
-        shipping_cost = listing[3]
-        if price != "NA":
-            total_price = float(price)
-            if shipping_cost != "NA":
-                total_price += float(shipping_cost)
-            if card_name not in card_prices:
-                card_prices[card_name] = []
-            card_prices[card_name].append(total_price)
-
-    for card_name, prices in card_prices.items():
-        if prices:
-            mean_price = statistics.mean(prices)
-            std_dev_price = statistics.stdev(prices) if len(prices) > 1 else 0
-            print(f"Mean average price (including shipping) for {card_name}: ${mean_price:.2f}")
-            print(f"Standard deviation (including shipping) for {card_name}: ${std_dev_price:.2f}")
-        else:
-            print(f"Mean average price (including shipping) for {card_name}: NA")
-            print(f"Standard deviation (including shipping) for {card_name}: NA")
-
-    # Calculate box price idea
-    print("\nBox Price Idea:")
-    for card_name, spotlight_data in spotlight_infos.items():
-        spotlight_price = spotlight_data[1]
-        spotlight_stock = spotlight_data[2]
-        spotlight_direct = spotlight_data[4]
-
-        if spotlight_direct == "yes" and spotlight_stock != "NA" and int(spotlight_stock) >= 25:
-            # Calculate the average and standard deviation of the first 10 listings
-            first_10_prices = [float(listing[1]) + float(listing[3]) for listing in all_listings if listing[0] == card_name][:10]
-            avg_first_10 = statistics.mean(first_10_prices)
-            std_dev_first_10 = statistics.stdev(first_10_prices)
-
-            if abs(float(spotlight_price) - avg_first_10) <= 2 * std_dev_first_10:
-                box_price = float(spotlight_price)
-            else:
-                box_price = statistics.mean(card_prices[card_name])
-        else:
-            # Calculate the weighted average excluding vendors with fewer than 500 sales and prices outside 2 standard deviations
-            filtered_prices = [price for price in card_prices[card_name] if abs(price - statistics.mean(card_prices[card_name])) <= 2 * statistics.stdev(card_prices[card_name])]
-            filtered_prices = [price for price in filtered_prices if any(listing[4] == card_name and int(listing[5].replace(' Sales', '')) >= 500 for listing in all_listings)]
-            box_price = statistics.mean(filtered_prices) if filtered_prices else statistics.mean(card_prices[card_name])
-
-        print(f"Box price idea for {card_name}: ${box_price:.2f}" if box_price != "NA" else f"Box price idea for {card_name}: NA")
+if __name__ == '__main__':
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
